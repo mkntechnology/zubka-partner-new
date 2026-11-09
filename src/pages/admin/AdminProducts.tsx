@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Package, Plus, CircleCheck as CheckCircle2, Sparkles, Briefcase, ChartBar as BarChart3, HardHat, CreditCard, Wallet, Users, Trash2, X, DollarSign, Tag, TriangleAlert as AlertTriangle } from 'lucide-react';
+import { Package, Plus, CircleCheck as CheckCircle2, Sparkles, Briefcase, ChartBar as BarChart3, HardHat, CreditCard, Wallet, Users, Trash2, Pencil, X, Tag, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { SectionHeader, EmptyState } from '@/components/Shared';
 import { Modal } from '@/components/Modal';
@@ -21,66 +21,127 @@ const iconMap: Record<string, typeof Package> = Object.fromEntries(
 );
 
 const statusOptions: Product['status'][] = ['Active', 'Beta', 'Coming Soon'];
+const billingFrequencyOptions: Product['billingFrequency'][] = ['Monthly', 'Yearly'];
 
 interface FormState {
   name: string;
   description: string;
   icon: string;
+  billingFrequency: 'Monthly' | 'Yearly';
   monthlyPrice: string;
   yearlyPrice: string;
   commissionEligible: boolean;
   showOnLanding: boolean;
   status: Product['status'];
   features: string[];
+  gstApplicable: boolean;
+  gstRate: string;
 }
 
 const emptyForm: FormState = {
   name: '',
   description: '',
   icon: 'Package',
+  billingFrequency: 'Monthly',
   monthlyPrice: '',
   yearlyPrice: '',
   commissionEligible: true,
   showOnLanding: false,
   status: 'Active',
   features: [''],
+  gstApplicable: false,
+  gstRate: '18',
 };
 
+function productToForm(p: Product): FormState {
+  return {
+    name: p.name,
+    description: p.description,
+    icon: p.icon,
+    billingFrequency: p.billingFrequency ?? (p.yearlyPrice != null ? 'Yearly' : 'Monthly'),
+    monthlyPrice: p.monthlyPrice != null ? String(p.monthlyPrice) : '',
+    yearlyPrice: p.yearlyPrice != null ? String(p.yearlyPrice) : '',
+    commissionEligible: p.commissionEligible,
+    showOnLanding: p.showOnLanding,
+    status: p.status,
+    features: p.features.length ? p.features : [''],
+    gstApplicable: p.gstApplicable ?? false,
+    gstRate: p.gstRate != null ? String(p.gstRate) : '18',
+  };
+}
+
+function computeGstAmount(price: number, rate: number): number {
+  return Math.round((price * (rate / 100)) * 100) / 100;
+}
+
 export function AdminProducts() {
-  const { products, addProduct, deleteProduct } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct } = useApp();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+
+  const openAdd = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+    setShowAdd(true);
+  };
+
+  const openEdit = (p: Product) => {
+    setForm(productToForm(p));
+    setEditingId(p.id);
+    setShowAdd(true);
+  };
+
+  const closeForm = () => {
+    setShowAdd(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const filteredFeatures = form.features.filter(f => f.trim() !== '');
-    addProduct({
+    const payload: Omit<Product, 'id'> = {
       name: form.name,
       description: form.description,
       icon: form.icon,
-      monthlyPrice: form.monthlyPrice ? Number(form.monthlyPrice) : null,
-      yearlyPrice: form.yearlyPrice ? Number(form.yearlyPrice) : null,
+      billingFrequency: form.billingFrequency,
+      monthlyPrice: form.billingFrequency === 'Monthly' && form.monthlyPrice ? Number(form.monthlyPrice) : null,
+      yearlyPrice: form.billingFrequency === 'Yearly' && form.yearlyPrice ? Number(form.yearlyPrice) : null,
       commissionEligible: form.commissionEligible,
       showOnLanding: form.showOnLanding,
       status: form.status,
       features: filteredFeatures,
-      launchDate: new Date().toISOString().split('T')[0],
-    });
-    setForm(emptyForm);
-    setShowAdd(false);
+      gstApplicable: form.gstApplicable,
+      gstRate: form.gstApplicable ? Number(form.gstRate) : 0,
+    };
+    if (editingId) {
+      updateProduct(editingId, payload);
+    } else {
+      addProduct({ ...payload, launchDate: new Date().toISOString().split('T')[0] });
+    }
+    closeForm();
   };
 
   const addFeature = () => setForm(f => ({ ...f, features: [...f.features, ''] }));
   const removeFeature = (index: number) => setForm(f => ({ ...f, features: f.features.filter((_, i) => i !== index) }));
   const updateFeature = (index: number, value: string) => setForm(f => ({ ...f, features: f.features.map((feat, i) => i === index ? value : feat) }));
 
+  const activePrice = form.billingFrequency === 'Monthly'
+    ? (form.monthlyPrice ? Number(form.monthlyPrice) : 0)
+    : (form.yearlyPrice ? Number(form.yearlyPrice) : 0);
+  const gstAmount = form.gstApplicable
+    ? computeGstAmount(activePrice, form.gstRate ? Number(form.gstRate) : 0)
+    : 0;
+  const totalWithGst = activePrice + gstAmount;
+
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Products Suite"
         subtitle="Manage Zubkas products available for partner referral"
-        action={<button onClick={() => setShowAdd(true)} className="btn-primary"><Plus className="h-4 w-4" /> Add Product</button>}
+        action={<button onClick={openAdd} className="btn-primary"><Plus className="h-4 w-4" /> Add Product</button>}
       />
 
       {products.length === 0 ? (
@@ -89,6 +150,11 @@ export function AdminProducts() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map(p => {
             const Icon = iconMap[p.icon] ?? Package;
+            const displayPrice = p.billingFrequency === 'Yearly'
+              ? p.yearlyPrice
+              : p.billingFrequency === 'Monthly'
+                ? p.monthlyPrice
+                : (p.monthlyPrice ?? p.yearlyPrice);
             return (
               <div key={p.id} className="card p-5 flex flex-col">
                 <div className="flex items-start justify-between">
@@ -97,6 +163,9 @@ export function AdminProducts() {
                   </div>
                   <div className="flex items-center gap-1">
                     <span className={`badge ${p.status === 'Active' ? 'badge-success' : p.status === 'Beta' ? 'badge-warning' : 'badge-neutral'}`}>{p.status}</span>
+                    <button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-gray-400 hover:bg-zubkas-50 hover:text-zubkas-700 transition-colors" title="Edit product">
+                      <Pencil className="h-4 w-4" />
+                    </button>
                     <button onClick={() => setDeleteTarget(p)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors" title="Delete product">
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -114,13 +183,29 @@ export function AdminProducts() {
                 </div>
                 <div className="mt-4 pt-3 border-t border-gray-50 space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Monthly</span>
-                    <span className="font-medium text-gray-900">{p.monthlyPrice != null ? `₹${p.monthlyPrice.toLocaleString('en-IN')}` : '—'}</span>
+                    <span className="text-gray-400">Billing</span>
+                    <span className="font-medium text-gray-900">{p.billingFrequency ?? 'Monthly'}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Yearly</span>
-                    <span className="font-medium text-gray-900">{p.yearlyPrice != null ? `₹${p.yearlyPrice.toLocaleString('en-IN')}` : '—'}</span>
+                    <span className="text-gray-400">Base Price</span>
+                    {displayPrice != null ? (
+                      <span className="font-medium text-gray-900">₹{displayPrice.toLocaleString('en-IN')}</span>
+                    ) : (
+                      <span className="font-medium text-emerald-600">Free</span>
+                    )}
                   </div>
+                  {displayPrice != null && p.gstApplicable && (
+                    <>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">+ GST ({p.gstRate ?? 18}%)</span>
+                        <span className="font-medium text-gray-700">₹{computeGstAmount(displayPrice, p.gstRate ?? 18).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">Total (incl. GST)</span>
+                        <span className="font-semibold text-zubkas-700">₹{(displayPrice + computeGstAmount(displayPrice, p.gstRate ?? 18)).toLocaleString('en-IN')}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-400">Commission</span>
                     {p.commissionEligible ? (
@@ -144,8 +229,8 @@ export function AdminProducts() {
         </div>
       )}
 
-      {/* Add Product Modal */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add New Product" size="lg">
+      {/* Add/Edit Product Modal */}
+      <Modal open={showAdd} onClose={closeForm} title={editingId ? 'Edit Product' : 'Add New Product'} size="lg">
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Product Name */}
           <div>
@@ -171,36 +256,94 @@ export function AdminProducts() {
             />
           </div>
 
-          {/* Monthly Price + Yearly Price */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/* Billing Frequency */}
+          <div>
+            <label className="text-sm font-medium text-gray-700">Billing Frequency</label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              {billingFrequencyOptions.map(opt => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setForm({ ...form, billingFrequency: opt })}
+                  className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${form.billingFrequency === opt ? 'border-zubkas-700 bg-zubkas-50 text-zubkas-700' : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}
+                >
+                  <Tag className="h-4 w-4" />
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Conditional Price Input */}
+          {form.billingFrequency === 'Monthly' ? (
             <div>
               <label className="text-sm font-medium text-gray-700">Monthly Price (₹)</label>
-              <div className="relative mt-1">
-                <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="number"
-                  min="0"
-                  value={form.monthlyPrice}
-                  onChange={(e) => setForm({ ...form, monthlyPrice: e.target.value })}
-                  className="input-field pl-9"
-                  placeholder="499"
-                />
-              </div>
+              <input
+                type="number"
+                min="0"
+                value={form.monthlyPrice}
+                onChange={(e) => setForm({ ...form, monthlyPrice: e.target.value })}
+                className="input-field mt-1"
+                placeholder="499"
+              />
             </div>
+          ) : (
             <div>
               <label className="text-sm font-medium text-gray-700">Yearly Price (₹)</label>
-              <div className="relative mt-1">
-                <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="number"
-                  min="0"
-                  value={form.yearlyPrice}
-                  onChange={(e) => setForm({ ...form, yearlyPrice: e.target.value })}
-                  className="input-field pl-9"
-                  placeholder="4,990"
-                />
-              </div>
+              <input
+                type="number"
+                min="0"
+                value={form.yearlyPrice}
+                onChange={(e) => setForm({ ...form, yearlyPrice: e.target.value })}
+                className="input-field mt-1"
+                placeholder="4,990"
+              />
             </div>
+          )}
+
+          {/* GST Configuration — available for both monthly and yearly */}
+          <div className="rounded-lg bg-gray-50 p-3 space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.gstApplicable}
+                onChange={(e) => setForm({ ...form, gstApplicable: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 text-zubkas-700 focus:ring-zubkas-700/20"
+              />
+              <span className="text-sm font-medium text-gray-700">Apply GST to this product</span>
+            </label>
+            {form.gstApplicable && (
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs font-medium text-gray-600">GST Rate (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={form.gstRate}
+                    onChange={(e) => setForm({ ...form, gstRate: e.target.value })}
+                    className="input-field mt-1"
+                    placeholder="18"
+                  />
+                </div>
+                {activePrice > 0 && (
+                  <div className="rounded-md bg-white border border-gray-100 p-3 text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Base Price</span>
+                      <span className="font-medium text-gray-900">₹{activePrice.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">+ GST ({form.gstRate || 0}%)</span>
+                      <span className="font-medium text-gray-700">₹{gstAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-gray-100">
+                      <span className="text-gray-600 font-medium">Total (incl. GST)</span>
+                      <span className="font-semibold text-zubkas-700">₹{totalWithGst.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Commission Eligible toggle */}
@@ -298,10 +441,10 @@ export function AdminProducts() {
 
           {/* Submit */}
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost flex-1">Cancel</button>
+            <button type="button" onClick={closeForm} className="btn-ghost flex-1">Cancel</button>
             <button type="submit" className="btn-primary flex-1">
-              <Plus className="h-4 w-4" />
-              Add Product
+              {editingId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {editingId ? 'Update Product' : 'Add Product'}
             </button>
           </div>
         </form>

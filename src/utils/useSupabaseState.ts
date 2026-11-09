@@ -87,9 +87,9 @@ export function useSupabaseCollection<T extends { id: string }>(
     const snake = toSnakeRow(row as unknown as Row);
     // Omit empty/falsy id so the database can auto-generate it (e.g. UUID default)
     if (!snake.id) delete snake.id;
-    // Omit undefined and empty-string values so DB defaults / NULL apply for nullable columns
+    // Omit undefined, null, and empty-string values so DB defaults / NULL apply for nullable columns
     for (const key of Object.keys(snake)) {
-      if (snake[key] === undefined || snake[key] === '') delete snake[key];
+      if (snake[key] === undefined || snake[key] === null || snake[key] === '') delete snake[key];
     }
     const { data, error } = await supabase.from(table).insert(snake).select();
     if (error) throw new Error(error.message);
@@ -106,13 +106,14 @@ export function useSupabaseCollection<T extends { id: string }>(
 
   const updateRow = useCallback(async (id: string, updates: Partial<T>) => {
     const snake = toSnakeRow(updates as unknown as Row);
-    // Omit undefined and empty-string values so DB defaults / NULL apply for nullable columns
+    // Omit undefined, null, and empty-string values so DB defaults / NULL apply for nullable columns
     for (const key of Object.keys(snake)) {
-      if (snake[key] === undefined || snake[key] === '') delete snake[key];
+      if (snake[key] === undefined || snake[key] === null || snake[key] === '') delete snake[key];
     }
+    // Optimistic update: reflect changes in local state immediately
+    setState(prev => prev.map(r => (r.id === id ? { ...r, ...updates } : r)));
     const { error } = await supabase.from(table).update(snake).eq('id', id);
     if (error) throw new Error(error.message);
-    setState(prev => prev.map(r => (r.id === id ? { ...r, ...updates } : r)));
   }, [table]);
 
   const deleteRow = useCallback(async (id: string) => {

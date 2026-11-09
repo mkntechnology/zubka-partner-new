@@ -40,6 +40,8 @@ export interface Plan {
   features: string[];
   price?: number | null;
   isCustom?: boolean;
+  gstApplicable?: boolean;
+  gstRate?: number;
 }
 
 export interface Customer {
@@ -156,6 +158,9 @@ export interface Product {
   yearlyPrice: number | null;
   status: 'Active' | 'Beta' | 'Coming Soon';
   launchDate?: string;
+  billingFrequency?: 'Monthly' | 'Yearly';
+  gstApplicable?: boolean;
+  gstRate?: number;
 }
 
 export interface Notification {

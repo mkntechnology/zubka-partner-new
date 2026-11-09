@@ -21,6 +21,15 @@ export function PartnerProducts() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {products.map(p => {
           const Icon = iconMap[p.icon] ?? Package;
+          const displayPrice = p.billingFrequency === 'Yearly'
+            ? p.yearlyPrice
+            : p.billingFrequency === 'Monthly'
+              ? p.monthlyPrice
+              : (p.monthlyPrice ?? p.yearlyPrice);
+          const gstAmount = displayPrice != null && p.gstApplicable
+            ? Math.round((displayPrice * (p.gstRate ?? 18) / 100) * 100) / 100
+            : 0;
+          const total = displayPrice != null ? displayPrice + gstAmount : 0;
           return (
             <div key={p.id} className="card p-5 flex flex-col">
               <div className="flex items-start justify-between">
@@ -41,13 +50,29 @@ export function PartnerProducts() {
               </div>
               <div className="mt-4 pt-3 border-t border-gray-50 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400">Monthly</span>
-                  <span className="font-medium text-gray-900">{p.monthlyPrice != null ? `₹${p.monthlyPrice.toLocaleString('en-IN')}` : '—'}</span>
+                  <span className="text-gray-400">Billing</span>
+                  <span className="font-medium text-gray-900">{p.billingFrequency ?? 'Monthly'}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400">Yearly</span>
-                  <span className="font-medium text-gray-900">{p.yearlyPrice != null ? `₹${p.yearlyPrice.toLocaleString('en-IN')}` : '—'}</span>
+                  <span className="text-gray-400">Base Price</span>
+                  {displayPrice != null ? (
+                    <span className="font-medium text-gray-900">₹{displayPrice.toLocaleString('en-IN')}</span>
+                  ) : (
+                    <span className="font-medium text-emerald-600">Free</span>
+                  )}
                 </div>
+                {displayPrice != null && p.gstApplicable && (
+                  <>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">+ GST ({p.gstRate ?? 18}%)</span>
+                      <span className="font-medium text-gray-700">₹{gstAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Total (incl. GST)</span>
+                      <span className="font-semibold text-zubkas-700">₹{total.toLocaleString('en-IN')}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-400">Commission</span>
                   {p.commissionEligible ? (

@@ -5,80 +5,144 @@ import { SectionHeader } from '@/components/Shared';
 import { Modal } from '@/components/Modal';
 import type { Plan } from '@/types';
 
-const emptyForm = { name: '', price: '', commissionRate: '10', type: 'Monthly' as Plan['type'], description: '', features: [''] };
+interface PlanFormState {
+  name: string;
+  price: string;
+  commissionRate: string;
+  type: Plan['type'];
+  description: string;
+  features: string[];
+  gstApplicable: boolean;
+  gstRate: string;
+}
+
+const emptyForm: PlanFormState = {
+  name: '',
+  price: '',
+  commissionRate: '10',
+  type: 'Monthly',
+  description: '',
+  features: [''],
+  gstApplicable: false,
+  gstRate: '18',
+};
+
+function computeGstAmount(price: number, rate: number): number {
+  return Math.round((price * (rate / 100)) * 100) / 100;
+}
+
+function planToForm(p: Plan): PlanFormState {
+  return {
+    name: p.name,
+    price: p.price != null ? String(p.price) : '',
+    commissionRate: String(p.commissionRate),
+    type: p.type,
+    description: p.description,
+    features: p.features && p.features.length > 0 ? [...p.features] : [''],
+    gstApplicable: p.gstApplicable ?? false,
+    gstRate: p.gstRate != null ? String(p.gstRate) : '18',
+  };
+}
+
+function buildPayload(form: PlanFormState) {
+  const cleanFeatures = form.features.map(f => f.trim()).filter(Boolean);
+  const basePrice = form.price ? Number(form.price) : null;
+  return {
+    name: form.name,
+    price: basePrice,
+    commissionRate: Number(form.commissionRate),
+    type: form.type,
+    description: form.description,
+    features: cleanFeatures,
+    gstApplicable: form.gstApplicable,
+    gstRate: form.gstApplicable ? Number(form.gstRate) : 0,
+  };
+}
 
 export function AdminPlans() {
   const { plans, addPlan, updatePlan, deletePlan } = useApp();
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<PlanFormState>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null);
   const [editTarget, setEditTarget] = useState<Plan | null>(null);
-  const [editForm, setEditForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState<PlanFormState>(emptyForm);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanFeatures = form.features.map(f => f.trim()).filter(Boolean);
-    addPlan({
-      name: form.name,
-      price: form.price ? Number(form.price) : null,
-      commissionRate: Number(form.commissionRate),
-      type: form.type,
-      description: form.description,
-      features: cleanFeatures,
-    });
+    addPlan(buildPayload(form));
     setForm(emptyForm);
     setShowAdd(false);
   };
 
-  const addFeature = () => {
-    setForm(prev => ({ ...prev, features: [...prev.features, ''] }));
-  };
-
-  const updateFeature = (index: number, value: string) => {
-    setForm(prev => ({ ...prev, features: prev.features.map((f, i) => i === index ? value : f) }));
-  };
-
-  const removeFeature = (index: number) => {
-    setForm(prev => ({ ...prev, features: prev.features.length > 1 ? prev.features.filter((_, i) => i !== index) : [''] }));
-  };
-
   const openEdit = (plan: Plan) => {
     setEditTarget(plan);
-    setEditForm({
-      name: plan.name,
-      price: plan.price != null ? String(plan.price) : '',
-      commissionRate: String(plan.commissionRate),
-      type: plan.type,
-      description: plan.description,
-      features: plan.features && plan.features.length > 0 ? [...plan.features] : [''],
-    });
+    setEditForm(planToForm(plan));
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTarget) return;
-    const cleanFeatures = editForm.features.map(f => f.trim()).filter(Boolean);
-    updatePlan(editTarget.id, {
-      name: editForm.name,
-      price: editForm.price ? Number(editForm.price) : null,
-      commissionRate: Number(editForm.commissionRate),
-      type: editForm.type,
-      description: editForm.description,
-      features: cleanFeatures,
-    });
+    updatePlan(editTarget.id, buildPayload(editForm));
     setEditTarget(null);
   };
 
-  const addEditFeature = () => {
-    setEditForm(prev => ({ ...prev, features: [...prev.features, ''] }));
-  };
+  const addFeature = () => setForm(prev => ({ ...prev, features: [...prev.features, ''] }));
+  const updateFeature = (index: number, value: string) => setForm(prev => ({ ...prev, features: prev.features.map((f, i) => i === index ? value : f) }));
+  const removeFeature = (index: number) => setForm(prev => ({ ...prev, features: prev.features.length > 1 ? prev.features.filter((_, i) => i !== index) : [''] }));
 
-  const updateEditFeature = (index: number, value: string) => {
-    setEditForm(prev => ({ ...prev, features: prev.features.map((f, i) => i === index ? value : f) }));
-  };
+  const addEditFeature = () => setEditForm(prev => ({ ...prev, features: [...prev.features, ''] }));
+  const updateEditFeature = (index: number, value: string) => setEditForm(prev => ({ ...prev, features: prev.features.map((f, i) => i === index ? value : f) }));
+  const removeEditFeature = (index: number) => setEditForm(prev => ({ ...prev, features: prev.features.length > 1 ? prev.features.filter((_, i) => i !== index) : [''] }));
 
-  const removeEditFeature = (index: number) => {
-    setEditForm(prev => ({ ...prev, features: prev.features.length > 1 ? prev.features.filter((_, i) => i !== index) : [''] }));
+  const renderGstConfig = (state: PlanFormState, set: (updater: (prev: PlanFormState) => PlanFormState) => void) => {
+    const basePrice = state.price ? Number(state.price) : 0;
+    const gstAmount = state.gstApplicable ? computeGstAmount(basePrice, state.gstRate ? Number(state.gstRate) : 0) : 0;
+    const total = basePrice + gstAmount;
+    return (
+      <div className="rounded-lg bg-gray-50 p-3 space-y-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={state.gstApplicable}
+            onChange={(e) => set(prev => ({ ...prev, gstApplicable: e.target.checked }))}
+            className="h-4 w-4 rounded border-gray-300 text-zubkas-700 focus:ring-zubkas-700/20"
+          />
+          <span className="text-sm font-medium text-gray-700">Apply GST to this plan</span>
+        </label>
+        {state.gstApplicable && (
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs font-medium text-gray-600">GST Rate (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={state.gstRate}
+                onChange={(e) => set(prev => ({ ...prev, gstRate: e.target.value }))}
+                className="input-field mt-1"
+                placeholder="18"
+              />
+            </div>
+            {state.price !== '' && (
+              <div className="rounded-md bg-white border border-gray-100 p-3 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Base Price</span>
+                  <span className="font-medium text-gray-900">₹{basePrice.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">GST ({state.gstRate || 0}%)</span>
+                  <span className="font-medium text-gray-700">₹{gstAmount.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-gray-100">
+                  <span className="text-gray-600 font-medium">Total (incl. GST)</span>
+                  <span className="font-semibold text-zubkas-700">₹{total.toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -95,51 +159,75 @@ export function AdminPlans() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {plans.map(p => (
-          <div key={p.id} className="card p-5">
-            <div className="flex items-start justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zubkas-50">
-                <Layers className="h-5 w-5 text-zubkas-700" />
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-gray-400 hover:bg-zubkas-50 hover:text-zubkas-700 transition-colors" title="Edit plan">
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button onClick={() => setDeleteTarget(p)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors" title="Delete plan">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            <h3 className="mt-3 font-display font-semibold text-gray-900">{p.name}</h3>
-            <p className="mt-1 text-sm text-gray-500">{p.description}</p>
-            {p.features && p.features.length > 0 && (
-              <div className="mt-3 space-y-1.5">
-                {p.features.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    {f}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="mt-4 flex items-center gap-4">
-              {p.price != null && p.price > 0 && (
+        {plans.map(p => {
+          const basePrice = p.price ?? 0;
+          const isFree = p.price == null || p.price === 0;
+          const gstAmount = p.gstApplicable ? computeGstAmount(basePrice, p.gstRate ?? 18) : 0;
+          const total = basePrice + gstAmount;
+          return (
+            <div key={p.id} className="card p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zubkas-50">
+                  <Layers className="h-5 w-5 text-zubkas-700" />
+                </div>
                 <div className="flex items-center gap-1">
-                  <IndianRupee className="h-4 w-4 text-gray-600" />
-                  <span className="text-lg font-bold text-gray-900">{p.price.toLocaleString('en-IN')}</span>
-                  <span className="text-xs text-gray-500">{p.type === 'Yearly' ? '/yr' : '/mo'}</span>
+                  <button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-gray-400 hover:bg-zubkas-50 hover:text-zubkas-700 transition-colors" title="Edit plan">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => setDeleteTarget(p)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors" title="Delete plan">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <h3 className="mt-3 font-display font-semibold text-gray-900">{p.name}</h3>
+              <p className="mt-1 text-sm text-gray-500">{p.description}</p>
+              {p.features && p.features.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {p.features.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      {f}
+                    </div>
+                  ))}
                 </div>
               )}
-              <div className="flex items-center gap-1.5">
-                <Percent className="h-4 w-4 text-zubkas-700" />
-                <span className="text-lg font-bold text-zubkas-700">{p.commissionRate}%</span>
-                <span className="text-xs text-gray-500">commission</span>
+              <div className="mt-4 space-y-1.5">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1">
+                    <IndianRupee className="h-4 w-4 text-gray-600" />
+                    <span className="text-lg font-bold text-gray-900">{isFree ? '0' : basePrice.toLocaleString('en-IN')}</span>
+                    <span className="text-xs text-gray-500">{p.type === 'Yearly' ? '/yr' : '/mo'}</span>
+                  </div>
+                  {isFree && <span className="text-xs font-medium text-emerald-600">Free</span>}
+                  <div className="flex items-center gap-1.5">
+                    <Percent className="h-4 w-4 text-zubkas-700" />
+                    <span className="text-lg font-bold text-zubkas-700">{p.commissionRate}%</span>
+                    <span className="text-xs text-gray-500">commission</span>
+                  </div>
+                </div>
+                {p.gstApplicable && !isFree && (
+                  <div className="space-y-1 pt-2 border-t border-gray-50">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Base Price</span>
+                      <span className="font-medium text-gray-900">₹{basePrice.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">GST ({p.gstRate ?? 18}%)</span>
+                      <span className="font-medium text-gray-700">₹{gstAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Total (incl. GST)</span>
+                      <span className="font-semibold text-zubkas-700">₹{total.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
+      {/* Add Plan Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Plan">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -160,13 +248,14 @@ export function AdminPlans() {
                 <option value="Monthly">Monthly</option>
                 <option value="Yearly">Yearly</option>
               </select>
-              <p className="mt-1 text-xs text-gray-400">Leave price blank if the plan is free.</p>
+              <p className="mt-1 text-xs text-gray-400">Enter 0 or leave blank for a free plan.</p>
             </div>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700">Commission Rate (%)</label>
             <input required type="number" min="1" max="50" value={form.commissionRate} onChange={(e) => setForm({ ...form, commissionRate: e.target.value })} className="input-field mt-1" />
           </div>
+          {renderGstConfig(form, setForm)}
           <div>
             <label className="text-sm font-medium text-gray-700">Description</label>
             <textarea required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field mt-1 min-h-20" placeholder="Plan features and details" />
@@ -225,13 +314,14 @@ export function AdminPlans() {
                 <option value="Monthly">Monthly</option>
                 <option value="Yearly">Yearly</option>
               </select>
-              <p className="mt-1 text-xs text-gray-400">Leave price blank if the plan is free.</p>
+              <p className="mt-1 text-xs text-gray-400">Enter 0 or leave blank for a free plan.</p>
             </div>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700">Commission Rate (%)</label>
             <input required type="number" min="1" max="50" value={editForm.commissionRate} onChange={(e) => setEditForm({ ...editForm, commissionRate: e.target.value })} className="input-field mt-1" />
           </div>
+          {renderGstConfig(editForm, setEditForm)}
           <div>
             <label className="text-sm font-medium text-gray-700">Description</label>
             <textarea required value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} className="input-field mt-1 min-h-20" placeholder="Plan features and details" />

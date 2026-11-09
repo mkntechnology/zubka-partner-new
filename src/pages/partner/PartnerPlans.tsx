@@ -18,49 +18,71 @@ export function PartnerPlans() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {plans.map(p => (
-          <div key={p.id} className="card p-5 flex flex-col">
-            <div className="flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zubkas-50">
-                <Layers className="h-6 w-6 text-zubkas-700" />
+        {plans.map(p => {
+          const basePrice = p.price ?? 0;
+          const isFree = p.price == null || p.price === 0;
+          const gstAmount = p.gstApplicable ? Math.round((basePrice * (p.gstRate ?? 18) / 100) * 100) / 100 : 0;
+          const total = basePrice + gstAmount;
+          return (
+            <div key={p.id} className="card p-5 flex flex-col">
+              <div className="flex items-start justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zubkas-50">
+                  <Layers className="h-6 w-6 text-zubkas-700" />
+                </div>
               </div>
-            </div>
 
-            <h3 className="mt-3 font-display font-semibold text-gray-900">{p.name}</h3>
-            <p className="mt-1 text-sm text-gray-500 flex-1">{p.description}</p>
+              <h3 className="mt-3 font-display font-semibold text-gray-900">{p.name}</h3>
+              <p className="mt-1 text-sm text-gray-500 flex-1">{p.description}</p>
 
-            <div className="mt-4 flex items-center gap-3">
-              {p.price != null && p.price > 0 && (
+              <div className="mt-4 flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <IndianRupee className="h-5 w-5 text-gray-700" />
-                  <span className="text-2xl font-bold text-gray-900">{p.price.toLocaleString('en-IN')}</span>
+                  <span className="text-2xl font-bold text-gray-900">{isFree ? '0' : basePrice.toLocaleString('en-IN')}</span>
                   <span className="text-xs text-gray-500">{p.type === 'Yearly' ? '/yr' : '/mo'}</span>
                 </div>
-              )}
-              <div className="flex items-center gap-1.5">
-                <Percent className="h-4 w-4 text-zubkas-700" />
-                <span className="text-2xl font-bold text-zubkas-700">{p.commissionRate}%</span>
+                {isFree && <span className="text-xs font-semibold text-emerald-600">Free</span>}
+                <div className="flex items-center gap-1.5">
+                  <Percent className="h-4 w-4 text-zubkas-700" />
+                  <span className="text-2xl font-bold text-zubkas-700">{p.commissionRate}%</span>
+                </div>
+                <span className="text-xs text-gray-500">commission</span>
               </div>
-              <span className="text-xs text-gray-500">commission</span>
-            </div>
 
-            <div className="mt-2 flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-gray-400" />
-              <span className="text-xs text-gray-500">{p.type} plan</span>
-            </div>
+              <div className="mt-2 flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                <span className="text-xs text-gray-500">{p.type} plan</span>
+              </div>
 
-            {p.features && p.features.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-gray-50 space-y-2">
-                {p.features.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    {f}
+              {p.gstApplicable && !isFree && (
+                <div className="mt-3 space-y-1 pt-2 border-t border-gray-50">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Base Price</span>
+                    <span className="font-medium text-gray-900">₹{basePrice.toLocaleString('en-IN')}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">GST ({p.gstRate ?? 18}%)</span>
+                    <span className="font-medium text-gray-700">₹{gstAmount.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Total (incl. GST)</span>
+                    <span className="font-semibold text-zubkas-700">₹{total.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              )}
+
+              {p.features && p.features.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-gray-50 space-y-2">
+                  {p.features.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      {f}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

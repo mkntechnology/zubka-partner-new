@@ -71,6 +71,7 @@ interface AppContextValue {
   updatePopup: (id: string, updates: Partial<Omit<Popup, 'id'>>) => void;
   deletePopup: (id: string) => void;
   addProduct: (p: Omit<Product, 'id'>) => void;
+  updateProduct: (id: string, updates: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (id: string) => void;
   addAnnouncement: (a: Omit<Announcement, 'id' | 'date' | 'author' | 'authorRole' | 'isPinned'>) => Promise<{ success: boolean; error?: string }>;
   deleteAnnouncement: (id: string) => void;
@@ -628,6 +629,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     productsHook.insertRow({ ...p, id: '' });
   }, [productsHook]);
 
+  const updateProduct: AppContextValue['updateProduct'] = useCallback((id, updates) => {
+    productsHook.updateRow(id, updates);
+  }, [productsHook]);
+
   const deleteProduct: AppContextValue['deleteProduct'] = useCallback((id) => {
     productsHook.deleteRow(id);
   }, [productsHook]);
@@ -1060,7 +1065,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       partners, customers, leads, employees, categories, announcements, notifications, plans, products,
       settings: settingsState, siteContent, transactions, customerPayments, roles, popups,
       hasPermission, getEmployeePermissions, addRole, updateRole, deleteRole, assignEmployeeRole,
-      addPartner, updatePartner, deletePartner, addEmployee, updateEmployee, deleteEmployee, addCategory, deleteCategory, addPlan, updatePlan, deletePlan, addPopup, updatePopup, deletePopup, addProduct, deleteProduct, addAnnouncement, deleteAnnouncement, addLead, adminAddLead, deleteLead, updateLeadStatus, approveLead, updateLeadPayment, convertLead, addCustomer, deleteCustomer, addCustomerPayment, deleteCustomerPayment,
+      addPartner, updatePartner, deletePartner, addEmployee, updateEmployee, deleteEmployee, addCategory, deleteCategory, addPlan, updatePlan, deletePlan, addPopup, updatePopup, deletePopup, addProduct, updateProduct, deleteProduct, addAnnouncement, deleteAnnouncement, addLead, adminAddLead, deleteLead, updateLeadStatus, approveLead, updateLeadPayment, convertLead, addCustomer, deleteCustomer, addCustomerPayment, deleteCustomerPayment,
       markNotificationRead, markAllRead,
       readAnnouncementIds, dismissedAnnouncementIds, dismissedNotificationIds,
       setReadAnnouncementIds, setDismissedAnnouncementIds, setDismissedNotificationIds,
