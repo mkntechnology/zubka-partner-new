@@ -64,14 +64,14 @@ interface AppContextValue {
   deleteEmployee: (id: string) => void;
   addCategory: (c: Omit<Category, 'id'>) => Promise<void>;
   deleteCategory: (id: string) => void;
-  addPlan: (p: Omit<Plan, 'id'>) => void;
-  updatePlan: (id: string, updates: Partial<Omit<Plan, 'id'>>) => void;
+  addPlan: (p: Omit<Plan, 'id'>) => Promise<void>;
+  updatePlan: (id: string, updates: Partial<Omit<Plan, 'id'>>) => Promise<void>;
   deletePlan: (id: string) => void;
   addPopup: (p: Omit<Popup, 'id' | 'createdAt'>) => void;
   updatePopup: (id: string, updates: Partial<Omit<Popup, 'id'>>) => void;
   deletePopup: (id: string) => void;
   addProduct: (p: Omit<Product, 'id'>) => void;
-  updateProduct: (id: string, updates: Partial<Omit<Product, 'id'>>) => void;
+  updateProduct: (id: string, updates: Partial<Omit<Product, 'id'>>) => Promise<void>;
   deleteProduct: (id: string) => void;
   addAnnouncement: (a: Omit<Announcement, 'id' | 'date' | 'author' | 'authorRole' | 'isPinned'>) => Promise<{ success: boolean; error?: string }>;
   deleteAnnouncement: (id: string) => void;
@@ -599,12 +599,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [categoriesHook]);
 
   // ===== PLANS =====
-  const addPlan: AppContextValue['addPlan'] = useCallback((p) => {
-    plansHook.insertRow({ ...p, id: '', isCustom: false });
+  const addPlan: AppContextValue['addPlan'] = useCallback(async (p) => {
+    await plansHook.insertRow({ ...p, id: '', isCustom: false });
   }, [plansHook]);
 
-  const updatePlan: AppContextValue['updatePlan'] = useCallback((id, updates) => {
-    plansHook.updateRow(id, updates);
+  const updatePlan: AppContextValue['updatePlan'] = useCallback(async (id, updates) => {
+    await plansHook.updateRow(id, updates);
   }, [plansHook]);
 
   const deletePlan: AppContextValue['deletePlan'] = useCallback((id) => {
@@ -629,8 +629,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     productsHook.insertRow({ ...p, id: '' });
   }, [productsHook]);
 
-  const updateProduct: AppContextValue['updateProduct'] = useCallback((id, updates) => {
-    productsHook.updateRow(id, updates);
+  const updateProduct: AppContextValue['updateProduct'] = useCallback(async (id, updates) => {
+    await productsHook.updateRow(id, updates);
   }, [productsHook]);
 
   const deleteProduct: AppContextValue['deleteProduct'] = useCallback((id) => {

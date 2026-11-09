@@ -42,6 +42,7 @@ export interface Plan {
   isCustom?: boolean;
   gstApplicable?: boolean;
   gstRate?: number;
+  gstAmount?: number;
 }
 
 export interface Customer {
@@ -161,6 +162,8 @@ export interface Product {
   billingFrequency?: 'Monthly' | 'Yearly';
   gstApplicable?: boolean;
   gstRate?: number;
+  monthlyGst?: number | null;
+  yearlyGst?: number | null;
 }
 
 export interface Notification {

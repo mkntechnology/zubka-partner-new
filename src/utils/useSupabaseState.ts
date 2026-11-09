@@ -106,14 +106,22 @@ export function useSupabaseCollection<T extends { id: string }>(
 
   const updateRow = useCallback(async (id: string, updates: Partial<T>) => {
     const snake = toSnakeRow(updates as unknown as Row);
-    // Omit undefined, null, and empty-string values so DB defaults / NULL apply for nullable columns
+    // Omit undefined and empty-string values so DB defaults apply for nullable columns.
+    // NOTE: null is intentionally KEPT so callers can explicitly clear a column
+    // (e.g. setting monthlyPrice to null when only yearly is offered).
     for (const key of Object.keys(snake)) {
-      if (snake[key] === undefined || snake[key] === null || snake[key] === '') delete snake[key];
+      if (snake[key] === undefined || snake[key] === '') delete snake[key];
     }
     // Optimistic update: reflect changes in local state immediately
     setState(prev => prev.map(r => (r.id === id ? { ...r, ...updates } : r)));
-    const { error } = await supabase.from(table).update(snake).eq('id', id);
+    // Use .select() to get the authoritative row back from the DB after update,
+    // then replace local state with the confirmed DB response so values persist.
+    const { data, error } = await supabase.from(table).update(snake).eq('id', id).select();
     if (error) throw new Error(error.message);
+    if (data && data.length > 0) {
+      const confirmed = toCamelRow<Row>(data[0] as Row) as unknown as T;
+      setState(prev => prev.map(r => (r.id === id ? { ...r, ...confirmed } : r)));
+    }
   }, [table]);
 
   const deleteRow = useCallback(async (id: string) => {
